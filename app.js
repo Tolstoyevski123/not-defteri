@@ -268,7 +268,7 @@ async function deleteNote() {
 $('setup-form').onsubmit = async (e) => {
   e.preventDefault();
   const name = $('setup-name').value.trim();
-  const token = $('setup-token').value.trim();
+  const token = $('setup-token').value.replace(/\s/g, '');
   const btn = e.submitter;
   btn.disabled = true;
   try {
@@ -282,6 +282,17 @@ $('setup-form').onsubmit = async (e) => {
     showSetup(err.message);
   } finally {
     btn.disabled = false;
+  }
+};
+
+$('paste-btn').onclick = async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) throw new Error();
+    $('setup-token').value = text.replace(/\s/g, '');
+  } catch {
+    toast('Pano okunamadı. Kutuya basılı tutup "Yapıştır" de.');
+    $('setup-token').focus();
   }
 };
 

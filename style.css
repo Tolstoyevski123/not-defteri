@@ -91,6 +91,8 @@ button.chip { cursor: pointer; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .setup-card { width: 100%; max-width: 400px; padding: 24px; }
 .setup-card form { display: grid; gap: 14px; margin-top: 16px; }
+.paste-row { display: flex; gap: 8px; }
+.paste-row input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: .85rem; }
 
 /* Ana ekran */
 .topbar {

@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="tr">
 <head>
   <meta charset="utf-8">
@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#6d5dfc">
   <title>Not Defteri</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <!-- Kurulum ekranı -->
@@ -19,7 +19,11 @@
           <input id="setup-name" required maxlength="30" placeholder="Örn. Yusuf" autocomplete="off">
         </label>
         <label>Erişim anahtarı (GitHub token)
-          <input id="setup-token" required type="password" placeholder="github_pat_..." autocomplete="off">
+          <span class="paste-row">
+            <input id="setup-token" required type="text" placeholder="github_pat_..." autocomplete="off"
+                   autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text">
+            <button type="button" id="paste-btn" class="btn">Yapıştır</button>
+          </span>
         </label>
         <p id="setup-error" class="error hidden"></p>
         <button class="btn primary" type="submit">Giriş yap</button>
@@ -84,6 +88,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
