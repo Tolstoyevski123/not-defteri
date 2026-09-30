@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#6d5dfc">
+  <title>Not Defteri</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Kurulum ekranı -->
+  <section id="setup" class="screen hidden">
+    <div class="card setup-card">
+      <h1>📒 Not Defteri</h1>
+      <p class="muted">Bu cihazda ilk kez açıyorsun. Adını ve erişim anahtarını gir.</p>
+      <form id="setup-form">
+        <label>Adın
+          <input id="setup-name" required maxlength="30" placeholder="Örn. Yusuf" autocomplete="off">
+        </label>
+        <label>Erişim anahtarı (GitHub token)
+          <input id="setup-token" required type="password" placeholder="github_pat_..." autocomplete="off">
+        </label>
+        <p id="setup-error" class="error hidden"></p>
+        <button class="btn primary" type="submit">Giriş yap</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Ana ekran -->
+  <section id="main" class="screen hidden">
+    <header class="topbar">
+      <h1>📒 Not Defteri</h1>
+      <div class="topbar-actions">
+        <button id="refresh-btn" class="icon-btn" title="Yenile">⟳</button>
+        <button id="me-btn" class="chip me"></button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Notlarda ara...">
+      <nav id="filters" class="filters"></nav>
+    </div>
+
+    <p id="status" class="muted status"></p>
+    <main id="notes" class="notes"></main>
+
+    <button id="new-btn" class="fab" title="Yeni not">＋</button>
+  </section>
+
+  <!-- Not düzenleyici -->
+  <dialog id="editor">
+    <form id="editor-form" method="dialog">
+      <div class="editor-head">
+        <span id="editor-author" class="chip"></span>
+        <span id="editor-date" class="muted small"></span>
+      </div>
+      <input id="editor-title" placeholder="Başlık" maxlength="120">
+      <textarea id="editor-content" placeholder="Yazmaya başla..."></textarea>
+      <div class="editor-actions">
+        <button type="button" id="delete-btn" class="btn danger">Sil</button>
+        <span class="spacer"></span>
+        <button type="button" id="cancel-btn" class="btn">Kapat</button>
+        <button type="submit" id="save-btn" class="btn primary">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ayarlar -->
+  <dialog id="settings">
+    <form id="settings-form" method="dialog">
+      <h2>Ayarlar</h2>
+      <label>Adın
+        <input id="settings-name" required maxlength="30">
+      </label>
+      <div class="editor-actions">
+        <button type="button" id="logout-btn" class="btn danger">Çıkış yap</button>
+        <span class="spacer"></span>
+        <button type="button" id="settings-cancel" class="btn">Kapat</button>
+        <button type="submit" class="btn primary">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

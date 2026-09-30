@@ -1,0 +1,8 @@
+{
+  "name": "Not Defteri",
+  "short_name": "Notlar",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#12121a",
+  "theme_color": "#6d5dfc"
+}
