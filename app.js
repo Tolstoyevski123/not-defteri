@@ -4,6 +4,8 @@ const DATA_REPO = 'not-defteri-veri';
 const DATA_FILE = 'notes.json';
 const CFG_KEY = 'notdefteri.cfg';
 const REFRESH_MS = 30000;
+// Her yayında version.json ve index.html'deki ?v= ile birlikte artırılır.
+const APP_VERSION = 6;
 
 const $ = (id) => document.getElementById(id);
 
@@ -273,6 +275,20 @@ function closeEditorCleanup() {
   for (const a of draft) if (a.blob) URL.revokeObjectURL(a.url);
   draft = [];
   $('attachments').replaceChildren();
+}
+
+// ---------- Otomatik güncelleme ----------
+// Telefonlar eski sürümü önbellekte tutabiliyor; yeni sürüm yayındaysa sayfa bir kez yeniden yüklenir.
+async function checkVersion() {
+  try {
+    const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const { v } = await res.json();
+    if (v === APP_VERSION) return;
+    const key = `notdefteri.reloaded.${v}`;
+    if (sessionStorage.getItem(key)) return; // CDN henüz güncellenmediyse döngüye girme
+    sessionStorage.setItem(key, '1');
+    location.replace(`${location.pathname}?v=${v}`);
+  } catch { /* çevrimdışı ya da depolama kapalı */ }
 }
 
 // ---------- Yardımcılar ----------
@@ -573,7 +589,10 @@ setInterval(() => {
   if (cfg && document.visibilityState === 'visible' && !$('editor').open) refresh();
 }, REFRESH_MS);
 document.addEventListener('visibilitychange', () => {
-  if (cfg && document.visibilityState === 'visible') refresh();
+  if (document.visibilityState !== 'visible') return;
+  if (!$('editor').open) checkVersion(); // yazılmakta olan not kaybolmasın
+  if (cfg) refresh();
 });
 
+checkVersion();
 if (cfg) showMain(); else showSetup();
