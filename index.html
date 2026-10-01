@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#6d5dfc">
   <title>Not Defteri</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <!-- Kurulum ekranı -->
@@ -61,6 +61,12 @@
       </div>
       <input id="editor-title" placeholder="Başlık" maxlength="120">
       <textarea id="editor-content" placeholder="Yazmaya başla..."></textarea>
+      <div id="attachments" class="attachments"></div>
+      <div class="media-actions">
+        <button type="button" id="rec-btn" class="btn">🎤 Ses kaydet</button>
+        <label class="btn">📷 Fotoğraf<input id="photo-input" type="file" accept="image/*" multiple hidden></label>
+        <label class="btn">🎥 Video<input id="video-input" type="file" accept="video/*" hidden></label>
+      </div>
       <div class="editor-actions">
         <button type="button" id="delete-btn" class="btn danger">Sil</button>
         <span class="spacer"></span>
@@ -88,6 +94,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

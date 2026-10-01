@@ -149,9 +149,29 @@ dialog::backdrop { background: rgba(10, 10, 20, .45); backdrop-filter: blur(2px)
 dialog form { display: grid; gap: 12px; }
 .editor-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 #editor-title { font-size: 1.1rem; font-weight: 600; }
-#editor-content { min-height: 45dvh; resize: vertical; }
+#editor { max-height: 94dvh; overflow-y: auto; }
+#editor-content { min-height: 30dvh; resize: vertical; }
 .editor-actions { display: flex; gap: 8px; align-items: center; }
-#editor.readonly #save-btn, #editor.readonly #delete-btn { display: none; }
+#editor.readonly #save-btn, #editor.readonly #delete-btn, #editor.readonly .media-actions { display: none; }
+
+/* Medya */
+.media-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.media-actions .btn { font-size: .9rem; padding: 8px 12px; }
+#rec-btn.recording { background: var(--danger); border-color: var(--danger); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .7; } }
+.attachments { display: grid; gap: 10px; }
+.attachments:empty { display: none; }
+.att { position: relative; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg); }
+.att img, .att video { display: block; width: 100%; max-height: 50dvh; object-fit: contain; background: #000; }
+.att audio { display: block; width: 100%; padding: 8px; }
+.att.loading { min-height: 54px; }
+.att.loading::after { content: "Yükleniyor..."; position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: .85rem; }
+.att.failed::after { content: "Dosya açılamadı"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--danger); font-size: .85rem; }
+.att-remove {
+  position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border-radius: 50%;
+  border: none; background: rgba(0, 0, 0, .6); color: #fff; font-size: .9rem; cursor: pointer;
+}
+.att-badges { letter-spacing: .02em; }
 
 .toast {
   position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);

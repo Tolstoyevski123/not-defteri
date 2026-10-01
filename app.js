@@ -26,13 +26,15 @@ function writeCfg(c) {
 class AuthError extends Error {}
 
 function api(path, opts = {}, token = cfg.token) {
+  const { headers, ...rest } = opts;
   return fetch(`https://api.github.com/repos/${DATA_OWNER}/${DATA_REPO}/${path}`, {
-    ...opts,
     cache: 'no-store',
+    ...rest,
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
+      ...headers,
     },
   });
 }
@@ -84,6 +86,169 @@ async function commit(message, mutate) {
     throw new Error(`Kaydedilemedi (${res.status})`);
   }
   throw new Error('Çakışma oluştu, lütfen tekrar dene.');
+}
+
+// ---------- Medya (ses, fotoğraf, video) ----------
+// Dosyalar veri reposunda media/<notId>/<ekId>.<uzantı> olarak saklanır.
+const MAX_MB = 25;
+const mediaCache = new Map(); // path -> object URL
+
+function kindOf(mime) {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  return 'audio';
+}
+function extOf(mime, name) {
+  const fromName = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+  if (/^[a-z0-9]{2,5}$/.test(fromName)) return fromName;
+  const sub = (mime.split('/')[1] || 'bin').split(';')[0];
+  return { jpeg: 'jpg', quicktime: 'mov', mpeg: 'mp3', 'x-m4a': 'm4a' }[sub] || sub;
+}
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.slice(r.result.indexOf(',') + 1));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+async function uploadMedia(path, blob) {
+  const content = await blobToBase64(blob);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await api(`contents/${path}`, {
+      method: 'PUT',
+      body: JSON.stringify({ message: `${cfg.name}: medya eklendi`, content }),
+    });
+    if (res.ok) return;
+    if (res.status === 409) continue;
+    if (res.status === 401 || res.status === 403) throw new AuthError('Yazma izni yok. Anahtarı kontrol et.');
+    throw new Error(`Dosya yüklenemedi (${res.status})`);
+  }
+  throw new Error('Dosya yüklenemedi, tekrar dene.');
+}
+
+// Silme başarısız olursa not yine de güncellenmiş sayılır; dosya repoda kalır.
+async function deleteMedia(list) {
+  for (const a of list) {
+    try {
+      const res = await api(`contents/${a.path}`);
+      if (!res.ok) continue;
+      const { sha } = await res.json();
+      await api(`contents/${a.path}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ message: `${cfg.name}: medya silindi`, sha }),
+      });
+    } catch { /* yok say */ }
+  }
+}
+
+async function mediaUrl(a) {
+  if (mediaCache.has(a.path)) return mediaCache.get(a.path);
+  const res = await api(`contents/${a.path}`, { cache: 'default', headers: { Accept: 'application/vnd.github.raw' } });
+  if (!res.ok) throw new Error(`Dosya açılamadı (${res.status})`);
+  const url = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: a.mime }));
+  mediaCache.set(a.path, url);
+  return url;
+}
+
+// Düzenleyicideki ekler: mevcutlar {path,...}, yeniler {blob, url,...}
+let draft = [];
+let recorder = null;
+let discardRecording = false;
+
+function addBlob(blob, name = '') {
+  if (blob.size > MAX_MB * 1024 * 1024) {
+    toast(`Dosya çok büyük (en fazla ${MAX_MB} MB)`);
+    return;
+  }
+  const mime = blob.type || 'application/octet-stream';
+  draft.push({ id: crypto.randomUUID(), kind: kindOf(mime), mime, name, size: blob.size, blob, url: URL.createObjectURL(blob) });
+  renderAttachments();
+}
+
+function renderAttachments() {
+  const box = $('attachments');
+  box.replaceChildren();
+  const editable = !$('editor').classList.contains('readonly');
+  for (const a of draft) {
+    const item = document.createElement('div');
+    item.className = 'att';
+    const el = document.createElement(a.kind === 'image' ? 'img' : a.kind);
+    if (a.kind !== 'image') {
+      el.controls = true;
+      el.preload = 'metadata';
+      el.playsInline = true;
+    }
+    item.append(el);
+    if (a.url) {
+      el.src = a.url;
+    } else {
+      item.classList.add('loading');
+      mediaUrl(a)
+        .then((url) => { a.url = url; el.src = url; })
+        .catch(() => item.classList.add('failed'))
+        .finally(() => item.classList.remove('loading'));
+    }
+    if (editable) {
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'att-remove';
+      x.textContent = '✕';
+      x.title = 'Kaldır';
+      x.onclick = () => {
+        if (a.blob) URL.revokeObjectURL(a.url);
+        draft = draft.filter((d) => d !== a);
+        renderAttachments();
+      };
+      item.append(x);
+    }
+    box.append(item);
+  }
+}
+
+async function toggleRecording() {
+  const btn = $('rec-btn');
+  if (recorder) { recorder.stop(); return; }
+  if (!window.MediaRecorder) { toast('Bu tarayıcı ses kaydını desteklemiyor'); return; }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    toast('Mikrofon izni verilmedi');
+    return;
+  }
+  const chunks = [];
+  const rec = new MediaRecorder(stream);
+  recorder = rec;
+  discardRecording = false;
+  const started = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    btn.textContent = `⏹ Durdur ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+  const timer = setInterval(tick, 500);
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    clearInterval(timer);
+    stream.getTracks().forEach((t) => t.stop());
+    recorder = null;
+    btn.classList.remove('recording');
+    btn.textContent = '🎤 Ses kaydet';
+    if (!discardRecording && chunks.length) {
+      addBlob(new Blob(chunks, { type: rec.mimeType || chunks[0].type || 'audio/webm' }), 'ses-kaydi');
+    }
+  };
+  rec.start();
+  btn.classList.add('recording');
+  tick();
+}
+
+function closeEditorCleanup() {
+  if (recorder) { discardRecording = true; recorder.stop(); }
+  for (const a of draft) if (a.blob) URL.revokeObjectURL(a.url);
+  draft = [];
+  $('attachments').replaceChildren();
 }
 
 // ---------- Yardımcılar ----------
@@ -171,15 +336,32 @@ function render() {
     card.style.setProperty('--c', colorFor(n.author));
     const h = document.createElement('h3');
     h.textContent = n.title || 'Başlıksız';
-    const p = document.createElement('p');
-    p.textContent = n.content;
+    card.append(h);
+    if (n.content) {
+      const p = document.createElement('p');
+      p.textContent = n.content;
+      card.append(p);
+    }
+    const atts = n.attachments || [];
+    if (atts.length) {
+      const count = { image: 0, video: 0, audio: 0 };
+      for (const a of atts) count[a.kind]++;
+      const badges = document.createElement('div');
+      badges.className = 'att-badges muted small';
+      badges.textContent = [
+        count.image && `🖼 ${count.image} fotoğraf`,
+        count.video && `🎥 ${count.video} video`,
+        count.audio && `🎤 ${count.audio} ses`,
+      ].filter(Boolean).join('  ·  ');
+      card.append(badges);
+    }
     const meta = document.createElement('div');
     meta.className = 'note-meta';
     const d = document.createElement('span');
     d.className = 'muted small';
     d.textContent = fmtDate(n.updatedAt);
     meta.append(chip(n.author), d);
-    card.append(h, p, meta);
+    card.append(meta);
     card.onclick = () => openEditor(n);
     box.append(card);
   }
@@ -219,6 +401,8 @@ function openEditor(note = null) {
   $('editor-title').readOnly = $('editor-content').readOnly = !mine;
   $('editor').classList.toggle('readonly', !mine);
   $('delete-btn').classList.toggle('hidden', !note);
+  draft = (note?.attachments || []).map((att) => ({ ...att, url: mediaCache.get(att.path) }));
+  renderAttachments();
   $('editor').showModal();
   if (!note) $('editor-title').focus();
 }
@@ -226,20 +410,37 @@ function openEditor(note = null) {
 async function saveNote() {
   const title = $('editor-title').value.trim();
   const content = $('editor-content').value.trim();
-  if (!title && !content) { toast('Boş not kaydedilemez'); return; }
+  if (recorder) { toast('Önce ses kaydını durdur'); return; }
+  if (!title && !content && !draft.length) { toast('Boş not kaydedilemez'); return; }
   const now = new Date().toISOString();
   const editing = state.editing;
+  const id = editing ? editing.id : crypto.randomUUID();
   const btn = $('save-btn');
   btn.disabled = true;
   btn.textContent = 'Kaydediliyor...';
   try {
+    // Önce yeni medya dosyaları yüklenir; hata olursa tekrar denemede yüklenenler atlanır.
+    const pending = draft.filter((a) => a.blob);
+    for (const [i, a] of pending.entries()) {
+      btn.textContent = `Yükleniyor ${i + 1}/${pending.length}...`;
+      const path = `media/${id}/${a.id}.${extOf(a.mime, a.name)}`;
+      await uploadMedia(path, a.blob);
+      mediaCache.set(path, a.url);
+      a.path = path;
+      delete a.blob;
+    }
+    btn.textContent = 'Kaydediliyor...';
+    const attachments = draft.map(({ id: attId, path, kind, mime, size }) => ({ id: attId, path, kind, mime, size }));
+    const removed = (editing?.attachments || []).filter((o) => !attachments.some((a) => a.id === o.id));
+
     if (editing) {
       await commit(`${cfg.name}: "${title || 'Başlıksız'}" düzenlendi`, (notes) =>
-        notes.map((n) => (n.id === editing.id ? { ...n, title, content, updatedAt: now } : n)));
+        notes.map((n) => (n.id === id ? { ...n, title, content, attachments, updatedAt: now } : n)));
     } else {
-      const note = { id: crypto.randomUUID(), author: cfg.name, title, content, createdAt: now, updatedAt: now };
+      const note = { id, author: cfg.name, title, content, attachments, createdAt: now, updatedAt: now };
       await commit(`${cfg.name}: "${title || 'Başlıksız'}" eklendi`, (notes) => [...notes, note]);
     }
+    deleteMedia(removed);
     $('editor').close();
     toast('Kaydedildi ✓');
     render();
@@ -256,6 +457,7 @@ async function deleteNote() {
   if (!note || !confirm('Bu not silinsin mi?')) return;
   try {
     await commit(`${cfg.name}: "${note.title || 'Başlıksız'}" silindi`, (notes) => notes.filter((n) => n.id !== note.id));
+    deleteMedia(note.attachments || []);
     $('editor').close();
     toast('Silindi');
     render();
@@ -298,6 +500,14 @@ $('paste-btn').onclick = async () => {
 
 $('editor-form').onsubmit = (e) => { e.preventDefault(); saveNote(); };
 $('cancel-btn').onclick = () => $('editor').close();
+$('editor').addEventListener('close', closeEditorCleanup);
+$('rec-btn').onclick = toggleRecording;
+for (const id of ['photo-input', 'video-input']) {
+  $(id).onchange = (e) => {
+    for (const f of e.target.files) addBlob(f, f.name);
+    e.target.value = '';
+  };
+}
 $('delete-btn').onclick = deleteNote;
 $('new-btn').onclick = () => openEditor();
 $('refresh-btn').onclick = refresh;
