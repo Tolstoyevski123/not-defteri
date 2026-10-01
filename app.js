@@ -167,6 +167,23 @@ function addBlob(blob, name = '') {
   renderAttachments();
 }
 
+// Telefon fotoğrafları küçültülüp JPEG'e çevrilir (HEIC dahil); yükleme hızlanır, her tarayıcıda açılır.
+const MAX_IMG_PX = 2048;
+async function compressImage(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_IMG_PX / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', 0.85));
+    if (blob) return new File([blob], 'foto.jpg', { type: 'image/jpeg' });
+  } catch { /* çözülemeyen formatta orijinal dosya kullanılır */ }
+  return new File([file], file.name || 'foto', { type: file.type || 'image/jpeg' });
+}
+
 function renderAttachments() {
   const box = $('attachments');
   box.replaceChildren();
@@ -271,19 +288,22 @@ function chip(name, tag = 'span') {
   return el;
 }
 let toastTimer;
-function toast(msg) {
+function toast(msg, ms = 2800) {
   const t = $('toast');
   t.textContent = msg;
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add('hidden'), 2800);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), ms);
 }
 function handleError(err) {
   if (err instanceof AuthError) {
     writeCfg(null);
     showSetup(err.message);
+  } else if (err instanceof TypeError) {
+    // fetch ağ hatası ("Failed to fetch" / "Load failed")
+    toast('Bağlantı hatası: internetini kontrol edip tekrar dene.', 7000);
   } else {
-    toast(err.message || 'Bir hata oluştu');
+    toast(err.message || 'Bir hata oluştu', 7000);
   }
 }
 
@@ -503,9 +523,16 @@ $('cancel-btn').onclick = () => $('editor').close();
 $('editor').addEventListener('close', closeEditorCleanup);
 $('rec-btn').onclick = toggleRecording;
 for (const id of ['photo-input', 'video-input']) {
-  $(id).onchange = (e) => {
-    for (const f of e.target.files) addBlob(f, f.name);
+  $(id).onchange = async (e) => {
+    const files = [...e.target.files];
     e.target.value = '';
+    for (const f of files) {
+      // Bazı galeri uygulamaları dosya türünü boş bırakıyor; girişe göre tür verilir
+      const file = id === 'photo-input'
+        ? await compressImage(f)
+        : new File([f], f.name || 'video.mp4', { type: f.type || 'video/mp4' });
+      addBlob(file, file.name);
+    }
   };
 }
 $('delete-btn').onclick = deleteNote;
