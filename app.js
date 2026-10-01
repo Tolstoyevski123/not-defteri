@@ -145,7 +145,14 @@ async function deleteMedia(list) {
 
 async function mediaUrl(a) {
   if (mediaCache.has(a.path)) return mediaCache.get(a.path);
-  const res = await api(`contents/${a.path}`, { cache: 'default', headers: { Accept: 'application/vnd.github.raw' } });
+  // GitHub'ın verdiği kısa ömürlü indirme linki API'den çok daha hızlı; olmazsa API'den indir.
+  let res;
+  try {
+    const meta = await api(`contents/${a.path}`);
+    const { download_url: link } = meta.ok ? await meta.json() : {};
+    if (link) res = await fetch(link);
+  } catch { /* API'ye düş */ }
+  if (!res?.ok) res = await api(`contents/${a.path}`, { headers: { Accept: 'application/vnd.github.raw' } });
   if (!res.ok) throw new Error(`Dosya açılamadı (${res.status})`);
   const url = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: a.mime }));
   mediaCache.set(a.path, url);
